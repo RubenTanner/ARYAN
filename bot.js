@@ -5,6 +5,7 @@ const {
   REST,
   Routes,
   ChannelType,
+  MessageFlags,
 } = require("discord.js");
 
 // Create the bot client
@@ -89,27 +90,27 @@ client.on("interactionCreate", async (interaction) => {
     minAccountAge = minHours;
     await interaction.reply({
       content: `Minimum account age set to ${minHours} hours.`,
-      ephemeral: true, // Only visible to the user who executed the command
+      flags: MessageFlags.Ephemeral, // Only visible to the user who executed the command
     });
   } else if (interaction.commandName === "setusermessage") {
     const newMessage = interaction.options.getString("message");
     userMessage = newMessage;
     await interaction.reply({
-      content: "DM message has been updated successfully.",
-      ephemeral: true,
+      content: "Message has been updated successfully.",
+      flags: MessageFlags.Ephemeral,
     });
   } else if (interaction.commandName === "setlogschannel") {
     const channel = interaction.options.getChannel("channel");
     if (channel.type !== ChannelType.GuildText) {
       return interaction.reply({
         content: "Please select a text channel.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
     logsChannelId = channel.id;
     await interaction.reply({
       content: `Logs will now be sent to ${channel.name}.`,
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
   }
 });
@@ -132,15 +133,16 @@ client.on("guildMemberAdd", async (member) => {
       );
 
       // Send an ephemeral message to the user
-      await member.guild.systemChannel?.send({
+      await member.send({
         content: userMessage
           .replace("{user}", member.user.username)
           .replace("{hours}", Math.ceil(remainingTime / (60 * 60 * 1000))),
+        ephemeral: true,
       });
 
       // Log the action in the channel set (if any)
-      if (channelId) {
-        const logsChannel = member.guild.channels.cache.get(channelId);
+      if (logsChannelId) {
+        const logsChannel = member.guild.channels.cache.get(logsChannelId);
         if (logsChannel && logsChannel.isTextBased()) {
           await logsChannel.send(
             `**Timeout Log:**
