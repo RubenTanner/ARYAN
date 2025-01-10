@@ -90,7 +90,7 @@ client.on("interactionCreate", async (interaction) => {
     minAccountAge = minHours;
     await interaction.reply({
       content: `Minimum account age set to ${minHours} hours.`,
-      flags: MessageFlags.Ephemeral, // Only visible to the user who executed the command
+      flags: MessageFlags.Ephemeral,
     });
   } else if (interaction.commandName === "setusermessage") {
     const newMessage = interaction.options.getString("message");
@@ -132,7 +132,7 @@ client.on("guildMemberAdd", async (member) => {
         )} hours.`
       );
 
-      // Send an ephemeral message to the user
+      // Send a DM to the timed out user
       await member.send({
         content: userMessage
           .replace("{user}", member.user.username)
@@ -145,12 +145,17 @@ client.on("guildMemberAdd", async (member) => {
         const logsChannel = member.guild.channels.cache.get(logsChannelId);
         if (logsChannel && logsChannel.isTextBased()) {
           await logsChannel.send(
-            `**Timeout Log:**
-            User: ${member.user.tag} (${member.id})
-            Reason: Account too new
-            Timeout Duration: ${Math.ceil(
-              remainingTime / (60 * 60 * 1000)
-            )} hours.`
+            `${member.user.tag} (${member.id}) has been timed out.
+            Their account at joining was ${
+              accountAge < 60 * 60 * 1000
+                ? "<1 hour"
+                : `${Math.floor(accountAge / (60 * 60 * 1000))} hours`
+            } old.
+            They have been timed out for ${
+              remainingTime < 60 * 60 * 1000
+                ? "<1 hour"
+                : `${Math.ceil(remainingTime / (60 * 60 * 1000))} hours`
+            }.`
           );
         }
       }
