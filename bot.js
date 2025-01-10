@@ -1,14 +1,20 @@
 require("dotenv").config(); // Load environment variables from .env
-const { Client, GatewayIntentBits, REST, Routes } = require("discord.js");
+const {
+  Client,
+  GatewayIntentBits,
+  REST,
+  Routes,
+  ChannelType,
+} = require("discord.js");
 
 // Create the bot client
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
 });
 
-// Default settings
-let minAccountAge = 24; // Default to 24 hours
-let dmMessage =
+// Defaults
+let minAccountAge = 24; // 24 hours minimum account age
+let userMessage =
   "Hi {user}, your account is too new to join this server. You have been timed out for {hours} hours. Please try again later.";
 
 // Slash command definitions
@@ -26,19 +32,33 @@ const commands = [
     ],
   },
   {
-    name: "setmessage",
-    description: "Set a custom DM message for timed-out users.",
+    name: "setusermessage",
+    description: "Set the message to send to users who are timed out.",
     options: [
       {
         name: "message",
-        description:
-          "The custom message (use {user} and {hours} as placeholders).",
+        description: "The message to send to timed out users.",
         type: 3, // STRING
         required: true,
       },
     ],
   },
+  {
+    name: "setlogschannel",
+    description: "Set the channel for logging actions.",
+    options: [
+      {
+        name: "channel",
+        description: "The channel where action logs will be sent.",
+        type: 7, // CHANNEL
+        required: true,
+      },
+    ],
+  },
 ];
+
+// Store the channel for logs
+let logsChannelId = null;
 
 // Register slash commands
 const rest = new REST({ version: "10" }).setToken(process.env.BOT_TOKEN);
@@ -67,11 +87,30 @@ client.on("interactionCreate", async (interaction) => {
   if (interaction.commandName === "setminage") {
     const minHours = interaction.options.getInteger("hours");
     minAccountAge = minHours;
-    await interaction.reply(`Minimum account age set to ${minHours} hours.`);
-  } else if (interaction.commandName === "setmessage") {
-    const customMessage = interaction.options.getString("message");
-    dmMessage = customMessage;
-    await interaction.reply("Custom DM message has been updated.");
+    await interaction.reply({
+      content: `Minimum account age set to ${minHours} hours.`,
+      ephemeral: true, // Only visible to the user who executed the command
+    });
+  } else if (interaction.commandName === "setusermessage") {
+    const newMessage = interaction.options.getString("message");
+    userMessage = newMessage;
+    await interaction.reply({
+      content: "DM message has been updated successfully.",
+      ephemeral: true,
+    });
+  } else if (interaction.commandName === "setlogschannel") {
+    const channel = interaction.options.getChannel("channel");
+    if (channel.type !== ChannelType.GuildText) {
+      return interaction.reply({
+        content: "Please select a text channel.",
+        ephemeral: true,
+      });
+    }
+    logsChannelId = channel.id;
+    await interaction.reply({
+      content: `Logs will now be sent to ${channel.name}.`,
+      ephemeral: true,
+    });
   }
 });
 
@@ -92,15 +131,26 @@ client.on("guildMemberAdd", async (member) => {
         )} hours.`
       );
 
-      // Send a DM to the user explaining the timeout (uses custom message)
-      const finalMessage = dmMessage
-        .replace("{user}", member.user.username)
-        .replace("{hours}", Math.ceil(remainingTime / (60 * 60 * 1000)));
-      try {
-        await member.send(finalMessage);
-        console.log(`Sent DM to ${member.user.tag}.`);
-      } catch (err) {
-        console.log(`Could not DM ${member.user.tag}.`);
+      // Send an ephemeral message to the user
+      await member.guild.systemChannel?.send({
+        content: userMessage
+          .replace("{user}", member.user.username)
+          .replace("{hours}", Math.ceil(remainingTime / (60 * 60 * 1000))),
+      });
+
+      // Log the action in the channel set (if any)
+      if (channelId) {
+        const logsChannel = member.guild.channels.cache.get(channelId);
+        if (logsChannel && logsChannel.isTextBased()) {
+          await logsChannel.send(
+            `**Timeout Log:**
+            User: ${member.user.tag} (${member.id})
+            Reason: Account too new
+            Timeout Duration: ${Math.ceil(
+              remainingTime / (60 * 60 * 1000)
+            )} hours.`
+          );
+        }
       }
     } catch (err) {
       console.error(`Failed to timeout ${member.user.tag}:`, err);
