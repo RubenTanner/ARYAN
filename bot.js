@@ -13,6 +13,18 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
 });
 
+// Log when the bot is ready and rearing to go
+client.on("ready", async () => {
+  console.log(`Bot is online as ${client.user.tag}`);
+
+  // Force the bot's name to update (hasnt been updating -_-)
+  const newName = "ARYAN";
+  if (client.user.username !== newName) {
+    await client.user.setUsername(newName);
+    console.log(`Bot's name updated to ${newName}`);
+  }
+});
+
 // Defaults
 let minAccountAge = 24; // 24 hours minimum account age
 let userMessage =
@@ -75,11 +87,6 @@ const rest = new REST({ version: "10" }).setToken(process.env.BOT_TOKEN);
     console.error("Failed to register slash commands:", err);
   }
 })();
-
-// Log when the bot is ready and rearing to go
-client.on("ready", () => {
-  console.log(`Bot is online as ${client.user.tag}`);
-});
 
 // Handle slash commands
 client.on("interactionCreate", async (interaction) => {
