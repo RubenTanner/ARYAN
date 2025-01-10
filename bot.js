@@ -1,23 +1,87 @@
 require("dotenv").config(); // Load environment variables from .env
-const { Client, GatewayIntentBits } = require("discord.js");
+const { Client, GatewayIntentBits, REST, Routes } = require("discord.js");
 
 // Create the bot client
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
 });
 
-// Log a confirmation message when the bot is online
+// Default settings
+let minAccountAge = 24; // Default to 24 hours
+let dmMessage =
+  "Hi {user}, your account is too new to join this server. You have been timed out for {hours} hours. Please try again later.";
+
+// Slash command definitions
+const commands = [
+  {
+    name: "setminage",
+    description: "Set the minimum account age (in hours) for new members.",
+    options: [
+      {
+        name: "hours",
+        description: "Minimum account age in hours.",
+        type: 4, // INTEGER i love docs with random things like this...why 4?!
+        required: true,
+      },
+    ],
+  },
+  {
+    name: "setmessage",
+    description: "Set a custom DM message for timed-out users.",
+    options: [
+      {
+        name: "message",
+        description:
+          "The custom message (use {user} and {hours} as placeholders).",
+        type: 3, // STRING
+        required: true,
+      },
+    ],
+  },
+];
+
+// Register slash commands
+const rest = new REST({ version: "10" }).setToken(process.env.BOT_TOKEN);
+
+(async () => {
+  try {
+    console.log("Refreshing slash commands...");
+    await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), {
+      body: commands,
+    });
+    console.log("Slash commands registered successfully.");
+  } catch (err) {
+    console.error("Failed to register slash commands:", err);
+  }
+})();
+
+// Log when the bot is ready and rearing to go
 client.on("ready", () => {
   console.log(`Bot is online as ${client.user.tag}`);
 });
 
-// Handle new members joining the server
+// Handle slash commands
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isCommand()) return;
+
+  if (interaction.commandName === "setminage") {
+    const minHours = interaction.options.getInteger("hours");
+    minAccountAge = minHours;
+    await interaction.reply(`Minimum account age set to ${minHours} hours.`);
+  } else if (interaction.commandName === "setmessage") {
+    const customMessage = interaction.options.getString("message");
+    dmMessage = customMessage;
+    await interaction.reply("Custom DM message has been updated.");
+  }
+});
+
+// Handle new members joining
 client.on("guildMemberAdd", async (member) => {
-  const oneDayInMs = 24 * 60 * 60 * 1000; // 1 day in milliseconds
+  const minAccountAgeMs = minAccountAge * 60 * 60 * 1000; // Convert hours to milliseconds
   const accountAge = Date.now() - member.user.createdAt.getTime();
 
-  if (accountAge < oneDayInMs) {
-    const remainingTime = oneDayInMs - accountAge;
+  if (accountAge < minAccountAgeMs) {
+    const remainingTime = minAccountAgeMs - accountAge;
 
     try {
       // Timeout the user for the remaining time
@@ -28,15 +92,12 @@ client.on("guildMemberAdd", async (member) => {
         )} hours.`
       );
 
-      // Send a DM to the user explaining the timeout
+      // Send a DM to the user explaining the timeout (uses custom message)
+      const finalMessage = dmMessage
+        .replace("{user}", member.user.username)
+        .replace("{hours}", Math.ceil(remainingTime / (60 * 60 * 1000)));
       try {
-        await member.send(
-          `Hi ${
-            member.user.username
-          }, your account is too new to join this server. You have been timed out for ${Math.ceil(
-            remainingTime / (60 * 60 * 1000)
-          )} hours. Please try again later.`
-        );
+        await member.send(finalMessage);
         console.log(`Sent DM to ${member.user.tag}.`);
       } catch (err) {
         console.log(`Could not DM ${member.user.tag}.`);
@@ -49,5 +110,5 @@ client.on("guildMemberAdd", async (member) => {
   }
 });
 
-// Bot login
+// Log in to Discord
 client.login(process.env.BOT_TOKEN);
