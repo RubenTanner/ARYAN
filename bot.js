@@ -152,13 +152,13 @@ client.on("guildMemberAdd", async (member) => {
         const logsChannel = member.guild.channels.cache.get(logsChannelId);
         if (logsChannel && logsChannel.isTextBased()) {
           await logsChannel.send(
-            `${member.user.tag} (${member.id}) has been timed out.
-            Their account at joining was ${
+            `${member} (${
+              member.user.tag
+            }) has been timed out.\nTheir account at joining was ${
               accountAge < 60 * 60 * 1000
                 ? "<1 hour"
                 : `${Math.floor(accountAge / (60 * 60 * 1000))} hours`
-            } old.
-            They have been timed out for ${
+            } old.\nThey have been timed out for ${
               remainingTime < 60 * 60 * 1000
                 ? "<1 hour"
                 : `${Math.ceil(remainingTime / (60 * 60 * 1000))} hours`
